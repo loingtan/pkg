@@ -1,4 +1,4 @@
-module gitlab.zalopay.vn/loint6/pkg
+module github.com/loingtan/pkg
 
 go 1.24.4
 

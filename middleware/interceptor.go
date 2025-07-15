@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -22,7 +23,6 @@ func ServiceAuthInterceptor(verifier ServiceClientVerifier, skipMethods map[stri
 		if !ok {
 			return nil, status.Errorf(codes.Unauthenticated, "missing metadata")
 		}
-
 		if authHeader, ok := md["authorization"]; ok && len(authHeader) > 0 {
 			token := strings.TrimPrefix(authHeader[0], "Bearer ")
 			if token != authHeader[0] {
@@ -34,13 +34,16 @@ func ServiceAuthInterceptor(verifier ServiceClientVerifier, skipMethods map[stri
 
 		clientID, hasClientID := md["client-id"]
 		clientKey, hasClientKey := md["client-key"]
+		log.Printf("Verifying service client with ID: %v", clientID)
+		log.Printf("Using client key: %v", clientKey)
 		if !hasClientID || !hasClientKey || len(clientID) == 0 || len(clientKey) == 0 {
-			return nil, status.Errorf(codes.Unauthenticated, "missing client credentials")
+			return nil, status.Errorf(codes.Unauthenticated, "missing client key or client ID")
 		}
-
+		log.Printf("Verifying service client with ID: %v", clientID)
+		log.Printf("Using client key: %v", clientKey)
 		verified, err := verifier.VerifyServiceClient(ctx, clientID[0], clientKey[0])
 		if err != nil || !verified {
-			return nil, status.Errorf(codes.Unauthenticated, "invalid client credentials")
+			return nil, status.Errorf(codes.Unauthenticated, "invalid client ID or key")
 		}
 
 		return handler(ctx, req)

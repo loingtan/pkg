@@ -3,6 +3,8 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	_ "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
@@ -246,7 +248,22 @@ func (s *metadataSupplier) Keys() []string {
 	return keys
 }
 func InitTracerProvider(serviceName string) (func(context.Context) error, error) {
-	exporter, err := otlptracehttp.New(context.Background())
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "localhost:4318" // Default endpoint for OTLP HTTP
+	}
+
+	insecure := os.Getenv("OTEL_EXPORTER_OTLP_INSECURE") != "false" // Default to insecure unless explicitly set to "false"
+
+	opts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(endpoint),
+	}
+
+	if insecure {
+		opts = append(opts, otlptracehttp.WithInsecure())
+	}
+
+	exporter, err := otlptracehttp.New(context.Background(), opts...)
 	if err != nil {
 		return nil, err
 	}

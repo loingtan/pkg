@@ -155,3 +155,7 @@ func (c *CacheService) HIncrBy(ctx context.Context, key, field string, incr int6
 	prefixedKey := c.prefixKey(key)
 	return c.client.HIncrBy(ctx, prefixedKey, field, incr).Err()
 }
+
+func (c *CacheService) RedisClient() *redis.Client {
+	return c.client
+}

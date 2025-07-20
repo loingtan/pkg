@@ -140,3 +140,18 @@ func (c *CacheService) Expire(ctx context.Context, key string, ttl time.Duration
 	prefixedKey := c.prefixKey(key)
 	return c.client.Expire(ctx, prefixedKey, ttl).Err()
 }
+
+func (c *CacheService) SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error) {
+	prefixedKey := c.prefixKey(key)
+	return c.client.SetNX(ctx, prefixedKey, value, ttl).Result()
+}
+
+func (c *CacheService) Del(ctx context.Context, key string) error {
+	prefixedKey := c.prefixKey(key)
+	return c.client.Del(ctx, prefixedKey).Err()
+}
+
+func (c *CacheService) HIncrBy(ctx context.Context, key, field string, incr int64) error {
+	prefixedKey := c.prefixKey(key)
+	return c.client.HIncrBy(ctx, prefixedKey, field, incr).Err()
+}

@@ -8,6 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/prometheus"
@@ -79,7 +80,11 @@ func Init(cfg Config) (*Telemetry, error) {
 	)
 	otel.SetMeterProvider(mp)
 
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+	// Set up proper propagation for HTTP calls
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
 	return &Telemetry{
 		Metrics:  promhttp.Handler(),
@@ -95,4 +100,11 @@ func ServerOption() grpc.ServerOption {
 
 func DialOption() grpc.DialOption {
 	return grpc.WithStatsHandler(otelgrpc.NewClientHandler())
+}
+
+// HTTPClient returns an HTTP client instrumented with OpenTelemetry
+func HTTPClient() *http.Client {
+	return &http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
 }

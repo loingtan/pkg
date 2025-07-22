@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
+	telemetry "github.com/loingtan/pkg/provider"
 )
 
 type ServiceClientVerifier interface {
@@ -25,7 +26,7 @@ type httpServiceAuthClient struct {
 func NewServiceAuthClient(baseURL, jwtSecret string) ServiceClientVerifier {
 	return &httpServiceAuthClient{
 		baseURL:   baseURL,
-		client:    &http.Client{},
+		client:    telemetry.HTTPClient(),
 		jwtSecret: jwtSecret,
 	}
 }

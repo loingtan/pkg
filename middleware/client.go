@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -51,9 +53,11 @@ func (c *httpServiceAuthClient) VerifyServiceClient(ctx context.Context, clientI
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("verification failed with status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Printf("Error: %v", err)
+		log.Printf("Service client verification failed: status=%d, body=%s", resp.StatusCode, string(bodyBytes))
+		return false, fmt.Errorf("verification failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
-
 	var result struct {
 		Verified bool `json:"verified"`
 	}

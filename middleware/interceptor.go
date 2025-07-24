@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -38,19 +37,6 @@ func ServiceAuthInterceptor(
 			span.SetStatus(codes.Error, err.Error()) // use otel codes for tracing status
 			return nil, err
 		}
-
-		// ─── Bearer‑token path ────────────────────────────────────────────────────
-		if authHeader, ok := md["authorization"]; ok && len(authHeader) > 0 {
-			token := strings.TrimPrefix(authHeader[0], "Bearer ")
-			if token != authHeader[0] {
-				if verified, err := verifier.VerifyServiceToken(ctx, token); err == nil && verified {
-					return handler(ctx, req)
-				}
-				// verification failed
-			}
-		}
-
-		// ─── client‑id / client‑key path ──────────────────────────────────────────
 		clientID, hasClientID := md["client-id"]
 		clientKey, hasClientKey := md["client-key"]
 		if !hasClientID || !hasClientKey ||

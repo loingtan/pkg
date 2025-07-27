@@ -60,14 +60,28 @@ func (c *httpServiceAuthClient) VerifyServiceClient(ctx context.Context, clientI
 		log.Printf("Service client verification failed: status=%d, body=%s", resp.StatusCode, string(bodyBytes))
 		return false, fmt.Errorf("verification failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
-	var result struct {
-		Verified bool `json:"verified"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, err
+
+	var ginResponse struct {
+		Success bool `json:"success"`
+		Data    struct {
+			ID       string `json:"id"`
+			Name     string `json:"name"`
+			ClientID string `json:"client_id"`
+			Active   bool   `json:"active"`
+		} `json:"data"`
+		Error   string `json:"error,omitempty"`
+		TraceID string `json:"trace_id,omitempty"`
 	}
 
-	return result.Verified, nil
+	if err := json.NewDecoder(resp.Body).Decode(&ginResponse); err != nil {
+		return false, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if !ginResponse.Success {
+		return false, fmt.Errorf("service verification failed: %s", ginResponse.Error)
+	}
+
+	return ginResponse.Data.Active, nil
 }
 
 func (c *httpServiceAuthClient) VerifyServiceToken(ctx context.Context, tokenString string) (bool, error) {

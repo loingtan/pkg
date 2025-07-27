@@ -12,6 +12,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	telemetry "github.com/loingtan/pkg/provider"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type ServiceClientVerifier interface {
@@ -39,11 +41,11 @@ func (c *httpServiceAuthClient) VerifyServiceClient(ctx context.Context, clientI
 		"client_key": clientKey,
 	}
 	payloadBytes, _ := json.Marshal(payload)
-
 	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/api/v1/services/verify", c.baseURL), strings.NewReader(string(payloadBytes)))
 	if err != nil {
 		return false, err
 	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)

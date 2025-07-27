@@ -140,7 +140,7 @@ func (m *HTTPMiddleware) validatePathParamValue(paramName, value, validationType
 	return nil
 }
 
-func extractBindingErrors(err error) ValidationErrors {
+func extractBindingErrors(_ error) ValidationErrors {
 
 	return ValidationErrors{
 		NewValidationError("request", "Invalid request format", nil, ErrorCodeValidation),
@@ -262,4 +262,41 @@ func ErrorHandler() gin.HandlerFunc {
 			}
 		}
 	}
+}
+
+type GinValidationMiddleware struct {
+	validator *Validator
+}
+
+func NewGinValidationMiddleware() *GinValidationMiddleware {
+	return &GinValidationMiddleware{
+		validator: NewValidator(),
+	}
+}
+
+func (m *GinValidationMiddleware) ValidateJSON() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		if c.Request.Method != http.MethodPost && c.Request.Method != http.MethodPut && c.Request.Method != http.MethodPatch {
+			c.Next()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func (m *GinValidationMiddleware) ErrorHandler() gin.HandlerFunc {
+	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+		traceID := getTraceID(c)
+
+		response := map[string]interface{}{
+			"success": false,
+			"error":   "Internal server error",
+			"code":    "INTERNAL_ERROR",
+			"traceId": traceID,
+		}
+
+		c.JSON(http.StatusInternalServerError, response)
+	})
 }

@@ -29,6 +29,7 @@ func NewValidator() *Validator {
 	v.RegisterValidation("discount_value", validateDiscountValue)
 	v.RegisterValidation("phone_number", validatePhoneNumber)
 	v.RegisterValidation("strong_password", validateStrongPassword)
+	v.RegisterValidation("username", validateUsername)
 	v.RegisterValidation("order_status", validateOrderStatus)
 	v.RegisterValidation("payment_method", validatePaymentMethod)
 	v.RegisterValidation("notification_type", validateNotificationType)
@@ -176,6 +177,15 @@ func validateStrongPassword(fl validator.FieldLevel) bool {
 	return hasUpper && hasLower && hasDigit && hasSpecial
 }
 
+func validateUsername(fl validator.FieldLevel) bool {
+	username := fl.Field().String()
+	if len(username) < 3 || len(username) > 50 {
+		return false
+	}
+	matched, _ := regexp.MatchString("^[a-zA-Z0-9_.-]+$", username)
+	return matched
+}
+
 func validateOrderStatus(fl validator.FieldLevel) bool {
 	status := fl.Field().String()
 	validStatuses := []string{"PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"}
@@ -214,7 +224,7 @@ func convertFieldError(fe validator.FieldError) ValidationError {
 	value := fe.Value()
 
 	switch fe.Tag() {
-	case "required":
+	case "required": 
 		return NewRequiredFieldError(field)
 	case "email":
 		return NewInvalidFormatError(field, "email", value)
@@ -255,6 +265,8 @@ func convertFieldError(fe validator.FieldError) ValidationError {
 		return NewInvalidFormatError(field, "phone number", value)
 	case "strong_password":
 		return NewBusinessRuleError(field, "must be at least 8 characters with uppercase, lowercase, digit, and special character", value)
+	case "username":
+		return NewInvalidFormatError(field, "username (3-50 characters, letters, numbers, dots, underscores, and hyphens only)", value)
 	case "order_status":
 		return NewInvalidEnumError(field, []string{"PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"}, value)
 	case "payment_method":

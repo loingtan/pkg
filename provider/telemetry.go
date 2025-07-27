@@ -21,11 +21,11 @@ import (
 )
 
 type Config struct {
-	Service      string // REQUIRED
-	OTLPEndpoint string // default "otel-collector:4317"
-	InsecureOTLP bool   // default true
+	Service      string
+	OTLPEndpoint string
+	InsecureOTLP bool
 
-	MetricsAddr string // default ":9464"  ← NEW
+	MetricsAddr string
 }
 
 func (c *Config) WithDefaults() *Config {
@@ -42,23 +42,19 @@ func (c *Config) WithDefaults() *Config {
 }
 
 type Telemetry struct {
-	Metrics  http.Handler                    // expose at /metrics
-	Shutdown func(ctx context.Context) error // defer this in main()
+	Metrics  http.Handler
+	Shutdown func(ctx context.Context) error
 }
 
 func Init(cfg Config) (*Telemetry, error) {
-	cfg = *cfg.WithDefaults() // panics if Service == ""
-
-	// ----- common resource -----
+	cfg = *cfg.WithDefaults()
 	res, _ := resource.Merge(resource.Default(),
 		resource.NewWithAttributes(semconv.SchemaURL,
 			semconv.ServiceNameKey.String(cfg.Service)),
 	)
-
-	// ----- traces → OTLP -----
 	exp, err := otlptracegrpc.New(context.Background(),
 		otlptracegrpc.WithEndpoint(cfg.OTLPEndpoint),
-		otlptracegrpc.WithInsecure(), // collector inside docker‑net; TLS off
+		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
 		return nil, err
@@ -79,8 +75,6 @@ func Init(cfg Config) (*Telemetry, error) {
 	)
 	otel.SetMeterProvider(mp)
 	otel.SetMeterProvider(mp)
-
-	// Set up proper propagation for HTTP calls
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
@@ -97,12 +91,9 @@ func AttachGin(r *gin.Engine, service string, t *Telemetry) {
 func ServerOption() grpc.ServerOption {
 	return grpc.StatsHandler(otelgrpc.NewServerHandler())
 }
-
 func DialOption() grpc.DialOption {
 	return grpc.WithStatsHandler(otelgrpc.NewClientHandler())
 }
-
-// HTTPClient returns an HTTP client instrumented with OpenTelemetry
 func HTTPClient() *http.Client {
 	return &http.Client{
 		Transport: otelhttp.NewTransport(http.DefaultTransport),

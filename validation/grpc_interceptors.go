@@ -5,17 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-)
-
-type contextKey string
-
-const (
-	traceIDKey contextKey = "trace_id"
 )
 
 type GRPCValidationInterceptor struct {
@@ -39,9 +33,6 @@ func (i *GRPCValidationInterceptor) UnaryServerInterceptor() grpc.UnaryServerInt
 		start := time.Now()
 
 		traceID := extractTraceIDFromMetadata(ctx)
-
-		ctx = context.WithValue(ctx, traceIDKey, traceID)
-
 		i.logger.Info("gRPC request received",
 			zap.String("method", info.FullMethod),
 			zap.String("trace_id", traceID),
@@ -59,7 +50,6 @@ func (i *GRPCValidationInterceptor) UnaryServerInterceptor() grpc.UnaryServerInt
 		}
 
 		resp, err := handler(ctx, req)
-
 		duration := time.Since(start)
 		if err != nil {
 			i.logger.Error("gRPC request failed",
@@ -163,41 +153,15 @@ func (s *validationServerStream) RecvMsg(m interface{}) error {
 }
 
 func extractTraceIDFromMetadata(ctx context.Context) string {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return generateTraceID()
-	}
-
-	traceIDs := md.Get("trace-id")
-	if len(traceIDs) > 0 {
-		return traceIDs[0]
-	}
-
-	traceIDs = md.Get("x-trace-id")
-	if len(traceIDs) > 0 {
-		return traceIDs[0]
-	}
-
-	traceIDs = md.Get("x-request-id")
-	if len(traceIDs) > 0 {
-		return traceIDs[0]
-	}
-
-	return generateTraceID()
-}
-
-func generateTraceID() string {
-	return fmt.Sprintf("trace-%d", time.Now().UnixNano())
+	span := trace.SpanFromContext(ctx)
+	return span.SpanContext().TraceID().String()
 }
 
 func (i *GRPCValidationInterceptor) UnaryClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		start := time.Now()
 
-		traceID := extractTraceIDFromContext(ctx)
-
-		ctx = metadata.AppendToOutgoingContext(ctx, "trace-id", traceID)
-
+		traceID := extractTraceIDFromMetadata(ctx)
 		if validationErrors := i.validator.Validate(req); len(validationErrors) > 0 {
 			i.logger.Warn("gRPC client request validation failed",
 				zap.String("method", method),
@@ -233,10 +197,7 @@ func (i *GRPCValidationInterceptor) UnaryClientInterceptor() grpc.UnaryClientInt
 func (i *GRPCValidationInterceptor) StreamClientInterceptor() grpc.StreamClientInterceptor {
 	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 
-		traceID := extractTraceIDFromContext(ctx)
-
-		ctx = metadata.AppendToOutgoingContext(ctx, "trace-id", traceID)
-
+		traceID := extractTraceIDFromMetadata(ctx)
 		stream, err := streamer(ctx, desc, cc, method, opts...)
 		if err != nil {
 			return nil, err
@@ -273,14 +234,6 @@ func (s *validationClientStream) SendMsg(m interface{}) error {
 	}
 
 	return s.ClientStream.SendMsg(m)
-}
-
-func extractTraceIDFromContext(ctx context.Context) string {
-	if traceID, ok := ctx.Value(traceIDKey).(string); ok {
-		return traceID
-	}
-
-	return generateTraceID()
 }
 
 func (i *GRPCValidationInterceptor) ValidateRequest(req interface{}) error {

@@ -11,7 +11,6 @@ import (
 	gormprometheus "gorm.io/plugin/prometheus"
 )
 
-// Config holds monitoring configuration
 type Config struct {
 	ServiceName          string
 	DBMetricsEnabled     bool
@@ -20,26 +19,21 @@ type Config struct {
 	KafkaMetricsInterval int
 }
 
-// Monitoring holds all monitoring components
 type Monitoring struct {
 	KafkaMetrics *KafkaMetrics
 	config       Config
 }
 
-// KafkaMetrics holds client-side Kafka metrics
 type KafkaMetrics struct {
-	// Producer client metrics
 	ProducerMessagesTotal   prometheus.CounterVec
 	ProducerDurationSeconds prometheus.HistogramVec
 	ProducerErrorsTotal     prometheus.CounterVec
 
-	// Consumer client metrics
 	ConsumerMessagesTotal   prometheus.CounterVec
 	ConsumerDurationSeconds prometheus.HistogramVec
 	ConsumerErrorsTotal     prometheus.CounterVec
 }
 
-// Init initializes monitoring components
 func Init(cfg Config) *Monitoring {
 	m := &Monitoring{
 		config: cfg,
@@ -52,10 +46,9 @@ func Init(cfg Config) *Monitoring {
 	return m
 }
 
-// newKafkaMetrics creates and registers client-side Kafka metrics with Prometheus
 func newKafkaMetrics(serviceName string) *KafkaMetrics {
 	return &KafkaMetrics{
-		// Producer client metrics
+
 		ProducerMessagesTotal: *promauto.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "kafka_producer_messages_total",
@@ -79,7 +72,6 @@ func newKafkaMetrics(serviceName string) *KafkaMetrics {
 			[]string{"service", "topic", "error_type"},
 		),
 
-		// Consumer client metrics
 		ConsumerMessagesTotal: *promauto.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "kafka_consumer_messages_total",
@@ -105,7 +97,6 @@ func newKafkaMetrics(serviceName string) *KafkaMetrics {
 	}
 }
 
-// SetupDatabaseMetrics configures GORM with Prometheus metrics
 func (m *Monitoring) SetupDatabaseMetrics(db *gorm.DB, dbName string) error {
 	if !m.config.DBMetricsEnabled {
 		return nil
@@ -114,7 +105,7 @@ func (m *Monitoring) SetupDatabaseMetrics(db *gorm.DB, dbName string) error {
 	return db.Use(gormprometheus.New(gormprometheus.Config{
 		DBName:          dbName,
 		RefreshInterval: uint32(m.config.DBMetricsInterval),
-		StartServer:     false, // Use existing metrics endpoint
+		StartServer:     false,
 		MetricsCollector: []gormprometheus.MetricsCollector{
 			&gormprometheus.MySQL{
 				VariableNames: []string{"Threads_running", "Threads_connected", "Slow_queries"},
@@ -123,14 +114,12 @@ func (m *Monitoring) SetupDatabaseMetrics(db *gorm.DB, dbName string) error {
 	}))
 }
 
-// InstrumentedProducer wraps kafka.Writer with metrics
 type InstrumentedProducer struct {
 	writer      *kafka.Writer
 	metrics     *KafkaMetrics
 	serviceName string
 }
 
-// NewInstrumentedProducer creates a new instrumented Kafka producer
 func (m *Monitoring) NewInstrumentedProducer(writer *kafka.Writer) *InstrumentedProducer {
 	if m.KafkaMetrics == nil {
 		return &InstrumentedProducer{writer: writer}
@@ -143,14 +132,12 @@ func (m *Monitoring) NewInstrumentedProducer(writer *kafka.Writer) *Instrumented
 	}
 }
 
-// WriteMessages writes messages with metrics instrumentation
 func (p *InstrumentedProducer) WriteMessages(ctx context.Context, msgs ...kafka.Message) error {
 	start := time.Now()
 	topic := p.writer.Topic
 
 	err := p.writer.WriteMessages(ctx, msgs...)
 
-	// Record metrics only if available
 	if p.metrics != nil {
 		duration := time.Since(start)
 		status := "success"
@@ -166,12 +153,10 @@ func (p *InstrumentedProducer) WriteMessages(ctx context.Context, msgs ...kafka.
 	return err
 }
 
-// Close closes the underlying writer
 func (p *InstrumentedProducer) Close() error {
 	return p.writer.Close()
 }
 
-// InstrumentedConsumer wraps kafka.Reader with metrics
 type InstrumentedConsumer struct {
 	reader      *kafka.Reader
 	metrics     *KafkaMetrics
@@ -179,7 +164,6 @@ type InstrumentedConsumer struct {
 	groupID     string
 }
 
-// NewInstrumentedConsumer creates a new instrumented Kafka consumer
 func (m *Monitoring) NewInstrumentedConsumer(reader *kafka.Reader, groupID string) *InstrumentedConsumer {
 	if m.KafkaMetrics == nil {
 		return &InstrumentedConsumer{reader: reader, groupID: groupID}
@@ -193,13 +177,11 @@ func (m *Monitoring) NewInstrumentedConsumer(reader *kafka.Reader, groupID strin
 	}
 }
 
-// ReadMessage reads a message with metrics instrumentation
 func (c *InstrumentedConsumer) ReadMessage(ctx context.Context) (kafka.Message, error) {
 	start := time.Now()
 
 	msg, err := c.reader.ReadMessage(ctx)
 
-	// Record metrics only if available
 	if c.metrics != nil {
 		duration := time.Since(start)
 		topic := msg.Topic
@@ -225,12 +207,10 @@ func (c *InstrumentedConsumer) ReadMessage(ctx context.Context) (kafka.Message, 
 	return msg, err
 }
 
-// Close closes the underlying reader
 func (c *InstrumentedConsumer) Close() error {
 	return c.reader.Close()
 }
 
-// Stats returns the current reader stats
 func (c *InstrumentedConsumer) Stats() kafka.ReaderStats {
 	return c.reader.Stats()
 }

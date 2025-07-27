@@ -107,8 +107,6 @@ func (c *CacheService) SetHash(ctx context.Context, key string, values map[strin
 	_, err := pipeline.Exec(ctx)
 	return err
 }
-
-// GetHash retrieves a field from a hash
 func (c *CacheService) GetHash(ctx context.Context, key, field string, dest interface{}) error {
 	prefixedKey := c.prefixKey(key)
 	data, err := c.client.HGet(ctx, prefixedKey, field).Bytes()

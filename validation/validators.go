@@ -11,16 +11,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// Validator wraps the go-playground validator with custom validation functions
 type Validator struct {
 	validator *validator.Validate
 }
 
-// NewValidator creates a new validator instance with custom validation functions
 func NewValidator() *Validator {
 	v := validator.New()
 
-	// Register custom validation functions
 	v.RegisterValidation("uuid", validateUUID)
 	v.RegisterValidation("coupon_code", validateCouponCode)
 	v.RegisterValidation("discount_type", validateDiscountType)
@@ -29,6 +26,7 @@ func NewValidator() *Validator {
 	v.RegisterValidation("end_after_start", validateEndAfterStart)
 	v.RegisterValidation("percentage_range", validatePercentageRange)
 	v.RegisterValidation("positive_amount", validatePositiveAmount)
+	v.RegisterValidation("discount_value", validateDiscountValue)
 	v.RegisterValidation("phone_number", validatePhoneNumber)
 	v.RegisterValidation("strong_password", validateStrongPassword)
 	v.RegisterValidation("order_status", validateOrderStatus)
@@ -38,7 +36,6 @@ func NewValidator() *Validator {
 	return &Validator{validator: v}
 }
 
-// Validate validates a struct and returns ValidationErrors
 func (v *Validator) Validate(s interface{}) ValidationErrors {
 	err := v.validator.Struct(s)
 	if err == nil {
@@ -55,21 +52,16 @@ func (v *Validator) Validate(s interface{}) ValidationErrors {
 	return validationErrors
 }
 
-// ValidateVar validates a single variable
 func (v *Validator) ValidateVar(field interface{}, tag string) error {
 	return v.validator.Var(field, tag)
 }
 
-// Custom validation functions
-
-// validateUUID validates UUID format
 func validateUUID(fl validator.FieldLevel) bool {
 	value := fl.Field().String()
 	_, err := uuid.Parse(value)
 	return err == nil
 }
 
-// validateCouponCode validates coupon code format
 func validateCouponCode(fl validator.FieldLevel) bool {
 	code := fl.Field().String()
 	if len(code) < 3 || len(code) > 50 {
@@ -79,35 +71,31 @@ func validateCouponCode(fl validator.FieldLevel) bool {
 	if !matched {
 		return false
 	}
-	// Cannot start or end with special characters
+
 	return !strings.HasPrefix(code, "_") && !strings.HasPrefix(code, "-") &&
 		!strings.HasSuffix(code, "_") && !strings.HasSuffix(code, "-")
 }
 
-// validateDiscountType validates discount type enum
 func validateDiscountType(fl validator.FieldLevel) bool {
 	discountType := fl.Field().String()
 	validTypes := []string{"PERCENT", "FIXED_PRICE", "FIXED"}
 	return slices.Contains(validTypes, discountType)
 }
 
-// validateUsageType validates usage type enum
 func validateUsageType(fl validator.FieldLevel) bool {
 	usageType := fl.Field().String()
 	validTypes := []string{"MANUAL", "AUTO"}
 	return slices.Contains(validTypes, usageType)
 }
 
-// validateFutureTime validates that time is in the future
 func validateFutureTime(fl validator.FieldLevel) bool {
 	t, ok := fl.Field().Interface().(time.Time)
 	if !ok {
 		return false
 	}
-	return t.After(time.Now().Add(-time.Minute)) // Allow 1 minute tolerance
+	return t.After(time.Now().Add(-time.Minute))
 }
 
-// validateEndAfterStart validates that end time is after start time
 func validateEndAfterStart(fl validator.FieldLevel) bool {
 	endTime, ok := fl.Field().Interface().(time.Time)
 	if !ok {
@@ -132,34 +120,54 @@ func validateEndAfterStart(fl validator.FieldLevel) bool {
 	return endTime.After(startTime)
 }
 
-// validatePercentageRange validates percentage is between 0 and 100
 func validatePercentageRange(fl validator.FieldLevel) bool {
 	value := fl.Field().Float()
 	return value >= 0 && value <= 100
 }
 
-// validatePositiveAmount validates amount is positive
 func validatePositiveAmount(fl validator.FieldLevel) bool {
 	value := fl.Field().Float()
 	return value > 0
 }
 
-// validatePhoneNumber validates phone number format
+func validateDiscountValue(fl validator.FieldLevel) bool {
+	discountVal := fl.Field().Float()
+
+	parent := fl.Parent()
+	if !parent.IsValid() {
+		return false
+	}
+
+	discountTypeField := parent.FieldByName("DiscountType")
+	if !discountTypeField.IsValid() {
+		return false
+	}
+
+	discountType := discountTypeField.String()
+
+	switch discountType {
+	case "PERCENT":
+		return discountVal >= 0 && discountVal <= 100
+	case "FIXED", "FIXED_PRICE":
+		return discountVal >= 1000
+	default:
+		return false
+	}
+}
+
 func validatePhoneNumber(fl validator.FieldLevel) bool {
 	phone := fl.Field().String()
-	// Basic international phone number validation
+
 	matched, _ := regexp.MatchString(`^\+?[1-9]\d{1,14}$`, phone)
 	return matched
 }
 
-// validateStrongPassword validates password strength
 func validateStrongPassword(fl validator.FieldLevel) bool {
 	password := fl.Field().String()
 	if len(password) < 8 {
 		return false
 	}
 
-	// Must contain at least one uppercase, one lowercase, one digit, and one special character
 	hasUpper, _ := regexp.MatchString(`[A-Z]`, password)
 	hasLower, _ := regexp.MatchString(`[a-z]`, password)
 	hasDigit, _ := regexp.MatchString(`\d`, password)
@@ -168,7 +176,6 @@ func validateStrongPassword(fl validator.FieldLevel) bool {
 	return hasUpper && hasLower && hasDigit && hasSpecial
 }
 
-// validateOrderStatus validates order status enum
 func validateOrderStatus(fl validator.FieldLevel) bool {
 	status := fl.Field().String()
 	validStatuses := []string{"PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"}
@@ -180,7 +187,6 @@ func validateOrderStatus(fl validator.FieldLevel) bool {
 	return false
 }
 
-// validatePaymentMethod validates payment method enum
 func validatePaymentMethod(fl validator.FieldLevel) bool {
 	method := fl.Field().String()
 	validMethods := []string{"CREDIT_CARD", "DEBIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH_ON_DELIVERY", "DIGITAL_WALLET"}
@@ -192,7 +198,6 @@ func validatePaymentMethod(fl validator.FieldLevel) bool {
 	return false
 }
 
-// validateNotificationType validates notification type enum
 func validateNotificationType(fl validator.FieldLevel) bool {
 	notificationType := fl.Field().String()
 	validTypes := []string{"EMAIL", "SMS", "PUSH", "IN_APP"}
@@ -204,7 +209,6 @@ func validateNotificationType(fl validator.FieldLevel) bool {
 	return false
 }
 
-// convertFieldError converts validator.FieldError to ValidationError
 func convertFieldError(fe validator.FieldError) ValidationError {
 	field := strings.ToLower(fe.Field())
 	value := fe.Value()
@@ -234,9 +238,9 @@ func convertFieldError(fe validator.FieldError) ValidationError {
 	case "coupon_code":
 		return NewInvalidFormatError(field, "coupon code (3-50 chars, A-Z0-9_- only)", value)
 	case "discount_type":
-		return NewInvalidEnumError(field, []string{"PERCENTAGE", "FIXED_AMOUNT"}, value)
+		return NewInvalidEnumError(field, []string{"PERCENT", "FIXED_PRICE", "FIXED"}, value)
 	case "usage_type":
-		return NewInvalidEnumError(field, []string{"SINGLE_USE", "MULTIPLE_USE"}, value)
+		return NewInvalidEnumError(field, []string{"MANUAL", "AUTO"}, value)
 	case "future_time":
 		return NewBusinessRuleError(field, "must be a future date and time", value)
 	case "end_after_start":
@@ -245,6 +249,8 @@ func convertFieldError(fe validator.FieldError) ValidationError {
 		return NewInvalidRangeError(field, "0", "100", value)
 	case "positive_amount":
 		return NewBusinessRuleError(field, "must be a positive amount", value)
+	case "discount_value":
+		return NewBusinessRuleError(field, "invalid discount value for the selected discount type", value)
 	case "phone_number":
 		return NewInvalidFormatError(field, "phone number", value)
 	case "strong_password":

@@ -69,7 +69,6 @@ func Init(cfg Config) (*Telemetry, error) {
 	)
 	otel.SetTracerProvider(tp)
 
-	// ----- metrics → Prometheus -----
 	promExp, err := prometheus.New()
 	if err != nil {
 		return nil, err
@@ -78,6 +77,7 @@ func Init(cfg Config) (*Telemetry, error) {
 		sdkmetric.WithReader(promExp),
 		sdkmetric.WithResource(res),
 	)
+	otel.SetMeterProvider(mp)
 	otel.SetMeterProvider(mp)
 
 	// Set up proper propagation for HTTP calls
